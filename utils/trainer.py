@@ -31,7 +31,7 @@ class Trainer:
                 train_target = train_target.to(device)
                 optimizer.zero_grad()
                 train_pred = model(train_image)
-                batch_loss = dice_loss(train_pred, train_target) + bce_loss(train_pred, train_target)
+                batch_loss = 0.5 * (dice_loss(train_pred, train_target) + bce_loss(train_pred, train_target))
                 train_loss += batch_loss.item()
                 batch_loss.backward()
                 optimizer.step()
@@ -46,7 +46,7 @@ class Trainer:
                     val_image = val_image.to(device)
                     val_target = val_target.to(device)
                     val_pred = model(val_image)
-                    batch_loss = dice_loss(val_pred, val_target) + bce_loss(val_pred, val_target)
+                    batch_loss = 0.5 * (dice_loss(val_pred, val_target) + bce_loss(val_pred, val_target))
                     val_loss += batch_loss.item()
             loss_val.append(val_loss / len(validation_dataloader))
 
