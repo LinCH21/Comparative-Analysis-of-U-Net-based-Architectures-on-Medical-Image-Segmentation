@@ -16,6 +16,7 @@ def get_data(data_pth, n_classes):
         label = nib.load(os.path.join(data_pth, pair["label"][2:]))
         image = image.get_fdata()
         label = label.get_fdata()
+        image = (image - np.mean(image)) / np.std(image)
         slice_num = image.shape[2]
         image = resize(image, (224, 224, slice_num), mode="constant", cval=0)
         label = resize(label, (224, 224, slice_num), mode="constant", cval=0)
