@@ -102,7 +102,7 @@ class _CheckPoint:
                 optim.load_state_dict(checkpoint["optimizer_state"])
                 lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state"])
                 print(f"Continue training from {checkpoint['epoch']}")
-                return checkpoint["epoch"]
+                return checkpoint["epoch"], checkpoint["train_loss"], checkpoint["val_loss"]
             else:
                 return 0, [], []
         else:
