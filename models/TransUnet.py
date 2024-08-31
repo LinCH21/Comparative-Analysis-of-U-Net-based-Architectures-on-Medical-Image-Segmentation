@@ -228,15 +228,13 @@ class TransUnet(nn.Module):
             out_channels=num_classes,
             kernel_size=3,
         )
-        self.actfinal = Softmax(dim=1)
 
     def forward(self, x):
         # x: (B, n_patch, hidden) = (B, 196, 768)
         # features: (B, 512, H/8, W/8); (B, 256, H/4, W/4); (B, 64, H/2, W/2)
         x, features = self.transformer(x)
         x = self.decoder(x, features)
-        x = self.segmentation_head(x)
-        output = self.actfinal(x)
+        output = self.segmentation_head(x)
         return output
 
 

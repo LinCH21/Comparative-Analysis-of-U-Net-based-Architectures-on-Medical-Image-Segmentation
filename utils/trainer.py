@@ -16,7 +16,7 @@ class Trainer:
         epoch_worse = 0
         best_val_loss = float("Inf")
         dice_loss = DiceLoss(self.args.num_classes)
-        bce_loss = nn.BCELoss()
+        ce_loss = nn.CrossEntropyLoss()
         print(f"Start Training {self.args.model_name}...")
         start_epoch, loss_train, loss_val = self.checkpoint.maybe_load(model, optimizer, scheduler)
         for epoch in range(start_epoch, self.args.num_epochs):
@@ -31,7 +31,7 @@ class Trainer:
                 train_target = train_target.to(device)
                 optimizer.zero_grad()
                 train_pred = model(train_image)
-                batch_loss = 0.5 * (dice_loss(train_pred, train_target) + bce_loss(train_pred, train_target))
+                batch_loss = 0.5 * (dice_loss(train_pred, train_target) + ce_loss(train_pred, train_target))
                 train_loss += batch_loss.item()
                 batch_loss.backward()
                 optimizer.step()
@@ -46,7 +46,7 @@ class Trainer:
                     val_image = val_image.to(device)
                     val_target = val_target.to(device)
                     val_pred = model(val_image)
-                    batch_loss = 0.5 * (dice_loss(val_pred, val_target) + bce_loss(val_pred, val_target))
+                    batch_loss = 0.5 * (dice_loss(val_pred, val_target) + ce_loss(val_pred, val_target))
                     val_loss += batch_loss.item()
             loss_val.append(val_loss / len(validation_dataloader))
 
@@ -76,13 +76,14 @@ class DiceLoss(nn.Module):
         super(DiceLoss, self).__init__()
         self.n_classes = n_classes
 
-    def forward(self, score, target):
+    def forward(self, pred, target):
+        pred = torch.softmax(pred, dim=1)
         loss = 0.0
         smooth = 1e-5
         for i in range(0, self.n_classes):
-            intersect = torch.sum(score[:, i] * target[:, i])
+            intersect = torch.sum(pred[:, i] * target[:, i])
             y_sum = torch.sum(target[:, i] * target[:, i])
-            z_sum = torch.sum(score[:, i] * score[:, i])
+            z_sum = torch.sum(pred[:, i] * pred[:, i])
             dice = 1 - (2 * intersect + smooth) / (z_sum + y_sum + smooth)
             loss += dice
         return loss / self.n_classes

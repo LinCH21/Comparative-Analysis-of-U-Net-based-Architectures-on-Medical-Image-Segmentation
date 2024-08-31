@@ -85,7 +85,6 @@ class UNet(nn.Module):
         self.upsample32 = upsample(256, 128)
         self.upsample21 = upsample(128, 64)
         self.convfinal = nn.Conv2d(64, n_out, kernel_size=1)
-        self.actfinal = nn.Softmax(dim=1)
 
         # weight initialization
         for m in self.modules():
@@ -119,8 +118,7 @@ class UNet(nn.Module):
         conv2m_out_ = torch.cat((self.upsample21(conv2m_out), conv1_out), 1)
         conv1m_out = self.conv1m(conv2m_out_)
 
-        convfinal_out = self.convfinal(conv1m_out)
-        output = self.actfinal(convfinal_out)
+        output = self.convfinal(conv1m_out)
         return output
 
 
