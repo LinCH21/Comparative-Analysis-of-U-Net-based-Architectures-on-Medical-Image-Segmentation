@@ -20,12 +20,13 @@ def get_data(data_pth, n_classes):
         slice_num = image.shape[2]
         image = resize(image, (224, 224, slice_num), mode="constant", cval=0)
         label = resize(label, (224, 224, slice_num), mode="constant", cval=0)
-        label_new = np.zeros((n_classes, 224, 224, slice_num))
-        for i in range(n_classes):
-            label_new[i, :, :, :] = label[:, :, :] == i
+        # label_new = np.zeros((n_classes, 224, 224, slice_num))
+        # for i in range(n_classes):
+        #     label_new[i, :, :, :] = label[:, :, :] == i
         for i in range(slice_num):
             all_image.append(image[:, :, i])
-            all_label.append(label_new[:, :, :, i])
+            all_label.append(label[:, :, i])
+            # all_label.append(label_new[:, :, :, i])
     all_image = np.array(all_image)
     all_label = np.array(all_label)
     return all_image, all_label
@@ -42,11 +43,12 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index):
         image = torch.tensor(self.data[index], dtype=torch.float32).unsqueeze(0)
-        label = torch.tensor(self.label[index], dtype=torch.float32)
+        label = torch.tensor(self.label[index], dtype=torch.float32).unsqueeze(0)
         if self.transform:
             cat_image = torch.cat((image, label), 0)
             cat_image = self.transform(cat_image)
             image = cat_image[0, :, :].unsqueeze(0)
-            label = cat_image[1:, :, :]
-        sample = {"data": image, "label": label}
+            label = cat_image[1, :, :].unsqueeze(0)
+        label = label.squeeze()
+        sample = {"data": image, "label": label, "index": index}
         return sample

@@ -26,7 +26,7 @@ class Trainer:
             train_loss = 0
             for batch in train_dataloader:
                 train_image = batch["data"]
-                train_target = batch["label"]
+                train_target = batch["label"].long()
                 train_image = train_image.to(device)
                 train_target = train_target.to(device)
                 optimizer.zero_grad()
@@ -42,7 +42,7 @@ class Trainer:
             with torch.no_grad():
                 for batch in validation_dataloader:
                     val_image = batch["data"]
-                    val_target = batch["label"]
+                    val_target = batch["label"].long()
                     val_image = val_image.to(device)
                     val_target = val_target.to(device)
                     val_pred = model(val_image)
@@ -78,6 +78,8 @@ class DiceLoss(nn.Module):
 
     def forward(self, pred, target):
         pred = torch.softmax(pred, dim=1)
+        target = torch.nn.functional.one_hot(target, num_classes=self.n_classes)
+        target = target.permute(0, 3, 1, 2)
         loss = 0.0
         smooth = 1e-5
         for i in range(0, self.n_classes):
