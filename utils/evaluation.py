@@ -1,12 +1,21 @@
+import os
+import torch
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
 import torch
 import pandas as pd
 import os
+
 
 def compute_hd95(pred, target):
     # Get the coordinates of the boundary points
     pred_points = torch.nonzero(pred, as_tuple=False)
     target_points = torch.nonzero(target, as_tuple=False)
-
+    if pred_points.numel() == 0 or target_points.numel() == 0:
+        # If either is empty, return a large value indicating poor match
+        return float('inf')
     # Compute pairwise distances between all boundary points
     dists = torch.cdist(pred_points.float(), target_points.float(), p=2)
 
@@ -21,29 +30,51 @@ def compute_hd95(pred, target):
     # Return the maximum of the two
     return torch.max(hd95_A_to_B, hd95_B_to_A).item()
 
-def compute_metrics(predictions, targets):
-    predictions = predictions.view(-1)
-    targets = targets.view(-1)
 
-    # Calculate TP, TN, FP, FN
-    TP = (predictions * targets).sum().float()
-    TN = ((1 - predictions) * (1 - targets)).sum().float()
-    FP = (predictions * (1 - targets)).sum().float()
-    FN = ((1 - predictions) * targets).sum().float()
+def compute_metrics(predictions, targets, num_classes):
+    # Initialize metrics
+    dice_total = 0.0
+    accuracy_total = 0.0
+    precision_total = 0.0
+    hausdorff_dist_total = 0.0
 
-    dice = (2 * TP) / (2 * TP + FP + FN + 1e-8)
-    accuracy = (TP + TN) / (TP + TN + FP + FN + 1e-8)
-    precision = TP / (TP + FP + 1e-8)
-    hausdorff_dist_95 = compute_hd95(predictions, targets)
+    for i in range(1, num_classes):  # Skip background class (assuming it's class 0)
+        pred_i = (predictions == i).float()
+        target_i = (targets == i).float()
+        TP = (pred_i * target_i).sum().float()
+        TN = ((1 - pred_i) * (1 - target_i)).sum().float()
+        FP = (pred_i * (1 - target_i)).sum().float()
+        FN = ((1 - pred_i) * target_i).sum().float()
 
-    return dice.item(), accuracy.item(), precision.item(), hausdorff_dist_95
+        dice = (2 * TP) / (2 * TP + FP + FN + 1e-8)
+        accuracy = (TP + TN) / (TP + TN + FP + FN + 1e-8)
+        precision = TP / (TP + FP + 1e-8)
+        hausdorff_dist_95 = compute_hd95(pred_i, target_i)
+
+        dice_total += dice.item()
+        accuracy_total += accuracy.item()
+        precision_total += precision.item()
+        hausdorff_dist_total += hausdorff_dist_95
+    num_valida_cls = num_classes - 1
+    return (dice_total / num_valida_cls,
+            accuracy_total / num_valida_cls,
+            precision_total / num_valida_cls,
+            hausdorff_dist_total / num_valida_cls)
+
 
 def evaluation(args, model, test_dataloader):
+    checkpoint_path = os.path.join(args.model_path, args.model_name + "_checkpoint.pt")
+    checkpoint = torch.load(checkpoint_path)
+    loss_train = checkpoint["train_loss"]
+    loss_val = checkpoint["val_loss"]
+    plt.plot(np.arange(len(loss_train)), loss_train)
+    plt.plot(np.arange(len(loss_val)), loss_val)
+    plt.savefig(os.path.join(args.model_path, args.model_name + ".png"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    checkpoint = torch.load(os.path.join(args.model_path, args.model_name + "_checkpoint.pt"))
     model.load_state_dict(checkpoint["model_state"])
     model.eval()
+
     scores = {
         "index": [],
         "dice": [],
@@ -51,25 +82,29 @@ def evaluation(args, model, test_dataloader):
         "precision": [],
         "hd95": []
     }
+
     with torch.no_grad():
         for batch in test_dataloader:
-            test_idx = batch["index"]
+            test_idx = batch["index"].item()
             test_image = batch["data"]
             test_label = batch["label"]
+            if torch.all(test_label == 0):
+                continue
             test_image = test_image.to(device)
             test_label = test_label.to(device)
             test_pred = model(test_image)
             pred_label = torch.argmax(test_pred, 1)
-            cur_dice, cur_acc, cur_pre, cur_hd = compute_metrics(pred_label, test_label)
+
+            cur_dice, cur_acc, cur_pre, cur_hd = compute_metrics(pred_label, test_label, args.num_classes)
             scores["index"].append(test_idx)
             scores["dice"].append(cur_dice)
             scores["accuracy"].append(cur_acc)
             scores["precision"].append(cur_pre)
             scores["hd95"].append(cur_hd)
-    df = pd.DataFrame(scores)
-    return df
 
-if __name__ == "__main__":
-    pred = torch.randn(1, 1, 224, 224).cuda()
-    label = torch.randn(1, 1, 224, 224).cuda()
-    print(compute_metrics(pred, label))
+    # Convert scores to a DataFrame and save or display
+    df = pd.DataFrame(scores)
+    excel_path = os.path.join(args.model_path, "network_comparison.xlsx")
+    with pd.ExcelWriter(excel_path) as writer:
+        df.to_excel(writer, sheet_name=args.model_name, index=False)
+

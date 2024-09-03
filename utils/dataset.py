@@ -49,6 +49,6 @@ class ImageDataset(Dataset):
             cat_image = self.transform(cat_image)
             image = cat_image[0, :, :].unsqueeze(0)
             label = cat_image[1, :, :].unsqueeze(0)
-        label = label.squeeze()
+        label = label.squeeze(0)
         sample = {"data": image, "label": label, "index": index}
         return sample
