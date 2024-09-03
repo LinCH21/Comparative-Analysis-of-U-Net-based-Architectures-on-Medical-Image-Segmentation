@@ -13,8 +13,9 @@ def compute_hd95(pred, target):
     # Get the coordinates of the boundary points
     pred_points = torch.nonzero(pred, as_tuple=False)
     target_points = torch.nonzero(target, as_tuple=False)
-    if pred_points.numel() == 0 or target_points.numel() == 0:
-        # If either is empty, return a large value indicating poor match
+    if pred_points.numel() == 0 and target_points.numel() == 0:
+        return 0
+    elif pred_points.numel() == 0 or target_points.numel() == 0:
         return float('inf')
     # Compute pairwise distances between all boundary points
     dists = torch.cdist(pred_points.float(), target_points.float(), p=2)
@@ -32,7 +33,6 @@ def compute_hd95(pred, target):
 
 
 def compute_metrics(predictions, targets, num_classes):
-    # Initialize metrics
     dice_total = 0.0
     accuracy_total = 0.0
     precision_total = 0.0
@@ -41,25 +41,35 @@ def compute_metrics(predictions, targets, num_classes):
     for i in range(1, num_classes):  # Skip background class (assuming it's class 0)
         pred_i = (predictions == i).float()
         target_i = (targets == i).float()
+
         TP = (pred_i * target_i).sum().float()
         TN = ((1 - pred_i) * (1 - target_i)).sum().float()
         FP = (pred_i * (1 - target_i)).sum().float()
         FN = ((1 - pred_i) * target_i).sum().float()
 
-        dice = (2 * TP) / (2 * TP + FP + FN + 1e-8)
+        # Special case: No ground truth or predicted positives for this class
+        if target_i.sum() == 0 and pred_i.sum() == 0:
+            dice = 1.0  # Perfect score since both are empty
+            precision = 1.0  # Perfect precision since there's nothing to predict
+        else:
+            dice = (2 * TP) / (2 * TP + FP + FN + 1e-8)
+            dice = dice.item()
+            precision = TP / (TP + FP + 1e-8)
+            precision = precision.item()
+
         accuracy = (TP + TN) / (TP + TN + FP + FN + 1e-8)
-        precision = TP / (TP + FP + 1e-8)
         hausdorff_dist_95 = compute_hd95(pred_i, target_i)
 
-        dice_total += dice.item()
+        dice_total += dice
         accuracy_total += accuracy.item()
-        precision_total += precision.item()
+        precision_total += precision
         hausdorff_dist_total += hausdorff_dist_95
-    num_valida_cls = num_classes - 1
-    return (dice_total / num_valida_cls,
-            accuracy_total / num_valida_cls,
-            precision_total / num_valida_cls,
-            hausdorff_dist_total / num_valida_cls)
+
+    num_valid_classes = num_classes - 1
+    return (dice_total / num_valid_classes,
+            accuracy_total / num_valid_classes,
+            precision_total / num_valid_classes,
+            hausdorff_dist_total / num_valid_classes)
 
 
 def evaluation(args, model, test_dataloader):
