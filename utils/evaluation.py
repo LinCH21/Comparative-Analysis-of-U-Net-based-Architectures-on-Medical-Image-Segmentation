@@ -4,10 +4,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import torch
-import pandas as pd
-import os
-
 
 def compute_hd95(pred, target):
     # Get the coordinates of the boundary points
@@ -77,8 +73,17 @@ def evaluation(args, model, test_dataloader):
     checkpoint = torch.load(checkpoint_path)
     loss_train = checkpoint["train_loss"]
     loss_val = checkpoint["val_loss"]
-    plt.plot(np.arange(len(loss_train)), loss_train)
-    plt.plot(np.arange(len(loss_val)), loss_val)
+    plt.plot(np.arange(len(loss_train)), loss_train, label="Train Loss")
+    plt.plot(np.arange(len(loss_val)), loss_val, label="Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("0.5 Dice Loss + 0.5 CE Loss")
+    if args.model_name == "unet":
+        plt.title("U-Net Loss vs. Epoch")
+    elif args.model_name == "transunet":
+        plt.title("TransUnet Loss vs. Epoch")
+    else:
+        plt.title("MambaUnet Loss vs. Epoch")
+    plt.legend()
     plt.savefig(os.path.join(args.model_path, args.model_name + ".png"))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -114,7 +119,5 @@ def evaluation(args, model, test_dataloader):
 
     # Convert scores to a DataFrame and save or display
     df = pd.DataFrame(scores)
-    excel_path = os.path.join(args.model_path, "network_comparison.xlsx")
-    with pd.ExcelWriter(excel_path) as writer:
-        df.to_excel(writer, sheet_name=args.model_name, index=False)
+    return df
 
